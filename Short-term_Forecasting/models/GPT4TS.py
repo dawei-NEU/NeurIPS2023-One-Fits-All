@@ -32,7 +32,8 @@ class Model(nn.Module):
         self.enc_embedding = DataEmbedding(configs.enc_in * self.patch_size, configs.d_model, configs.embed, configs.freq,
                                            configs.dropout)
 
-        self.gpt2 = GPT2Model.from_pretrained('gpt2', output_attentions=True, output_hidden_states=True)
+        # self.gpt2 = GPT2Model.from_pretrained('gpt2', output_attentions=True, output_hidden_states=True)
+        self.gpt2 = GPT2Model.from_pretrained(configs.local_model_path, output_attentions=True, output_hidden_states=True)
         self.gpt2.h = self.gpt2.h[:configs.gpt_layers]
         
         for i, (name, param) in enumerate(self.gpt2.named_parameters()):
