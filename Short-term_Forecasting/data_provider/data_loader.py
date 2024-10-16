@@ -1,3 +1,7 @@
+# this code is used to define various dataset classes inherited from the dataset class in torch, 
+# these various dataset classes is for reading data from csv or npz source data files,
+# meanwhile add some attributes for them.
+
 import os
 import numpy as np
 import pandas as pd
@@ -718,7 +722,7 @@ class Dataset_Custom(Dataset):
         return self.scaler.inverse_transform(data)
 
 
-class Dataset_M4(Dataset):
+class Dataset_M4(Dataset): # 定义一个封装M4数据的类，继承torch的dataset类，该类的属性即为该数据的特征信息，并读取数据
     def __init__(self, root_path, flag='pred', size=None,
                  features='S', data_path='ETTh1.csv',
                  target='OT', scale=False, inverse=False, timeenc=0, freq='15min',

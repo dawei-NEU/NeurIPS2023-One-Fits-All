@@ -110,7 +110,7 @@ class DataEmbedding(nn.Module):
     def __init__(self, c_in, d_model, embed_type='fixed', freq='h', dropout=0.1):
         super(DataEmbedding, self).__init__()
 
-        self.value_embedding = TokenEmbedding(c_in=c_in, d_model=d_model)
+        self.value_embedding = TokenEmbedding(c_in=c_in, d_model=d_model) # instead of tokenizer by conv1d with kernel size 3 due to the conv network can aggregate the adjacent data
         self.position_embedding = PositionalEmbedding(d_model=d_model)
         self.temporal_embedding = TemporalEmbedding(d_model=d_model, embed_type=embed_type,
                                                     freq=freq) if embed_type != 'timeF' else TimeFeatureEmbedding(

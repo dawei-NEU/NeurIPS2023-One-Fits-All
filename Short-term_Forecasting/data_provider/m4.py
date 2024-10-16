@@ -103,7 +103,7 @@ class M4Meta:
     seasonal_patterns = ['Yearly', 'Quarterly', 'Monthly', 'Weekly', 'Daily', 'Hourly']
     horizons = [6, 8, 18, 13, 14, 48]
     frequencies = [1, 4, 12, 1, 1, 24]
-    horizons_map = {
+    horizons_map = { # prelen for M4 dataset
         'Yearly': 6,
         'Quarterly': 8,
         'Monthly': 18,

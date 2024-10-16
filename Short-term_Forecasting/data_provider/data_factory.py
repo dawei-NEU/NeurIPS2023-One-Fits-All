@@ -1,3 +1,6 @@
+# this code is used to define various features for various dataset according to various tasks
+# return the datasets loaded from the correspinding dataset classes and the dataloaders
+
 from data_provider.data_loader import Dataset_ETT_hour, Dataset_ETT_minute, Dataset_Custom, Dataset_M4, PSMSegLoader, \
     MSLSegLoader, SMAPSegLoader, SMDSegLoader, SWATSegLoader, UEAloader
 from data_provider.uea import collate_fn
@@ -72,7 +75,7 @@ def data_provider(args, flag):
     else:
         if args.data == 'm4':
             drop_last = False
-        data_set = Data(
+        data_set = Data(  # Data是封装的不同的数据集的类对象，初始化时即读取数据，该类也是继承torch的dataset类
             root_path=args.root_path,
             data_path=args.data_path,
             flag=flag,
@@ -85,7 +88,8 @@ def data_provider(args, flag):
         )
         batch_size = args.batch_size
         print(flag, len(data_set))
-        data_loader = DataLoader(
+        # DataLoader是torch提供的数据加载方法，用于分批读取，迭代训练，it combines a dataset and a sampler, and provides an iterable over the given dataset
+        data_loader = DataLoader( 
             data_set,
             batch_size=batch_size,
             shuffle=shuffle_flag,

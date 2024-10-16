@@ -30,7 +30,7 @@ class Model(nn.Module):
         self.padding_patch_layer = nn.ReplicationPad1d((0, self.stride)) 
         self.patch_num += 1
         self.enc_embedding = DataEmbedding(configs.enc_in * self.patch_size, configs.d_model, configs.embed, configs.freq,
-                                           configs.dropout)
+                                           configs.dropout) # include position embedding and token embedding
 
         # self.gpt2 = GPT2Model.from_pretrained('gpt2', output_attentions=True, output_hidden_states=True)
         self.gpt2 = GPT2Model.from_pretrained(configs.local_model_path, output_attentions=True, output_hidden_states=True)
@@ -51,10 +51,10 @@ class Model(nn.Module):
         # self.in_layer = nn.Linear(configs.patch_size, configs.d_model)
 
         if self.task_name == 'long_term_forecast' or self.task_name == 'short_term_forecast':
-            self.predict_linear_pre = nn.Linear(self.seq_len, self.pred_len + self.seq_len)
+            self.predict_linear_pre = nn.Linear(self.seq_len, self.pred_len + self.seq_len) # input sequence len -> input sequence len + predict len
             self.predict_linear = nn.Linear(self.patch_size, configs.enc_in)
             self.ln = nn.LayerNorm(configs.d_ff)
-            self.out_layer = nn.Linear(configs.d_ff, configs.c_out)
+            self.out_layer = nn.Linear(configs.d_ff, configs.c_out) # 128 -> 1
         if self.task_name == 'imputation':
             self.ln_proj = nn.LayerNorm(configs.d_model)
             self.out_layer = nn.Linear(
@@ -118,20 +118,25 @@ class Model(nn.Module):
         return dec_out
 
     def forecast(self, x_enc, x_mark_enc, x_dec, x_mark_dec):
-        B, L, M = x_enc.shape
+        # instance norm -> token embedding + position embedding -> input embedding(linear) -> padding to 768 -> gpt2 -> linear(output)
+        # [16, 36, 1] -> [16, 36, 128] -> 
+        B, L, M = x_enc.shape # [16, 36, 1]
+        print("the shape of original input is [{}, {}, {}]".format(B, L, M))
         
         # Normalization from Non-stationary Transformer
         means = x_enc.mean(1, keepdim=True).detach()
         x_enc = x_enc - means
         stdev = torch.sqrt(
             torch.var(x_enc, dim=1, keepdim=True, unbiased=False) + 1e-5)
-        x_enc /= stdev
+        x_enc /= stdev # instance norm
 
         # embedding
-        enc_out = self.enc_embedding(x_enc, x_mark_enc)  # [B,T,C]
-        enc_out = self.predict_linear_pre(enc_out.permute(0, 2, 1)).permute(
-            0, 2, 1)  # align temporal dimension
-        enc_out = torch.nn.functional.pad(enc_out, (0, 768-enc_out.shape[-1]))
+        enc_out = self.enc_embedding(x_enc, x_mark_enc)  # [B,T,C] [16, 36, 128]
+        print("the shape after token embedding and pos embedding is {}".format(enc_out.shape))
+        enc_out = self.predict_linear_pre(enc_out.permute(0, 2, 1)).permute( # input sentence length 36 to input+pre 54 # [16, 54, 128]
+            0, 2, 1)  # input embedding to get the embedding vector, align temporal dimension, instead of nn.embedding
+        print("the shape after input embedding is {}".format(enc_out.shape))
+        enc_out = torch.nn.functional.pad(enc_out, (0, 768-enc_out.shape[-1])) # add all input words embedding to 768 which is the small gpt's embedding dimension
 
         # enc_out = rearrange(enc_out, 'b l m -> b m l')
         # enc_out = self.padding_patch_layer(enc_out)
@@ -139,13 +144,15 @@ class Model(nn.Module):
         # enc_out = self.predict_linear(enc_out)
         # enc_out = rearrange(enc_out, 'b m n p -> b n (m p)')
 
-        dec_out = self.gpt2(inputs_embeds=enc_out).last_hidden_state
-        dec_out = dec_out[:, :, :self.d_ff]
+        dec_out = self.gpt2(inputs_embeds=enc_out).last_hidden_state # [16, 54, 768]
+        print("the shape after gpt2 is {}".format(dec_out.shape))
+        dec_out = dec_out[:, :, :self.d_ff] # [16, 54, 128]
+        print("the shape after align output dimension is {}".format(dec_out.shape))
         # dec_out = dec_out.reshape(B, -1)
         
         # dec_out = self.ln(dec_out)
-        dec_out = self.out_layer(dec_out)
-        # print(dec_out.shape)
+        dec_out = self.out_layer(dec_out) # 128 -> 1 [16, 54, 1]
+        print("output shape is {}".format(dec_out.shape))
         # dec_out = dec_out.reshape(B, self.pred_len + self.seq_len, -1)
         
         # De-Normalization from Non-stationary Transformer
@@ -155,7 +162,7 @@ class Model(nn.Module):
         dec_out = dec_out + \
                   (means[:, 0, :].unsqueeze(1).repeat(
                       1, self.pred_len + self.seq_len, 1))
-        
+        print("output shape after de-normalization is {}".format(dec_out.shape))
         return dec_out
 
     def anomaly_detection(self, x_enc):
